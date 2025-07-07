@@ -6,4 +6,5 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     answer: str
+    oauth: Optional[Dict[str, str]] = None 
     data: Optional[Dict[str, str]] = None 

@@ -3,7 +3,7 @@ from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-
+from db.mongodb import get_user_by_id
 # ✅ Claves RSA en PEM
 PRIVATE_KEY = Path("private_key.pem").read_text()
 PUBLIC_KEY = Path("public_key.pem").read_text()
@@ -16,7 +16,7 @@ auth_scheme = HTTPBearer()
 
 # ✅ Generar token firmado
 def generate_access_token(user_id: str) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(hours=3)
+    expire = datetime.now(timezone.utc) + timedelta(hours=48)
     payload = {
         "sub": user_id,
         "iss": ISSUER,
@@ -62,17 +62,18 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(auth_sc
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="❌ Token válido pero sin claim 'sub'"
             )
-        return {
-            'user_id': user_id,
-            'token': token
-        }
+        
+        user = get_user_by_id(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="❌ Usuario no encontrado"
+            )
 
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="❌ Token expirado."
-        )
-    except jwt.InvalidTokenError as e:
+        # Devolver usuario + el token
+        return {**user, "token": token}
+
+    except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"❌ Token inválido: {e}"

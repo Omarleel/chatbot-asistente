@@ -29,9 +29,17 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
 
 
-# 👉 Obtener usuario por correo
 def get_user_by_email(email: str) -> dict | None:
     return users_collection.find_one({"email": email})
+
+def get_user_by_id(idd: str) -> dict | None:
+    try:
+        object_id = ObjectId(idd)
+    except Exception:
+        # Si no es un ObjectId válido, devolvemos None
+        return None
+    return users_collection.find_one({"_id": object_id})
+
 
 # 👉 Guardar tokens de Google
 def save_google_tokens(email: str, google_tokens: dict):
@@ -85,4 +93,10 @@ def save_google_tokens_by_id(user_id: str, tokens: dict):
     users_collection.update_one(
         {"_id": ObjectId(user_id)},
         {"$set": {"google": tokens}}
+    )
+
+def save_slack_tokens_by_id(user_id: str, tokens: dict):
+    users_collection.update_one(
+        {"_id": ObjectId(user_id)},
+        {"$set": {"slack": tokens}}
     )
