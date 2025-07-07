@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 import requests
@@ -6,6 +6,7 @@ from utils.google_auth import is_google_token_valid
 from models.google_calendar_response import CalendarResponse
 import logging
 from utils.google_calendar import find_event_id
+
 logger = logging.getLogger(__name__)
 
 SCOPES = [
@@ -64,7 +65,7 @@ def register(mcp):
             )
         
     @mcp.tool()
-    async def get_event(access_token: str, summary: str, start_time: str, timezone: str = "America/Lima") -> CalendarResponse:
+    async def get_event_by_summary_and_start_time(access_token: str, summary: str, start_time: str, timezone: str = "America/Lima") -> CalendarResponse:
         try:
             if not is_google_token_valid(access_token):
                 return CalendarResponse(success=False, message="❌ Token inválido o expirado.")
@@ -82,6 +83,56 @@ def register(mcp):
         except Exception as e:
             logger.error(f"❌ Error al obtener evento: {e}", exc_info=True)
             return CalendarResponse(success=False, message=f"❌ Error al obtener evento: {e}")
+        
+
+    @mcp.tool()
+    async def get_all_events(access_token: str, max_results: int = 10) -> CalendarResponse:
+        """
+        Lista los próximos eventos en el calendario del usuario.
+        """
+        try:
+            if not is_google_token_valid(access_token):
+                return CalendarResponse(success=False, message="❌ Token inválido o expirado.")
+
+            # Crear servicio
+            service = get_calendar_service_from_token(access_token)
+
+            # Tiempo actual en UTC
+            now = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+            # Llamada a la API de Google Calendar
+            events_result = service.events().list(
+                calendarId='primary',
+                timeMin=now,
+                maxResults=max_results,
+                singleEvents=True,
+                orderBy='startTime'
+            ).execute()
+            events = events_result.get('items', [])
+
+            if not events:
+                return CalendarResponse(
+                    success=True,
+                    message="✅ No hay eventos próximos en el calendario.",
+                    url=None
+                )
+
+            # Construir la lista de eventos
+            event_list = "\n".join([
+                f"- {e.get('summary', '(Sin título)')} @ {e['start'].get('dateTime', e['start'].get('date'))}"
+                for e in events
+            ])
+
+            return CalendarResponse(
+                success=True,
+                message=f"✅ Próximos eventos:\n{event_list}",
+                url=None
+            )
+
+        except Exception as e:
+            logger.error(f"❌ Error al obtener eventos: {e}", exc_info=True)
+            return CalendarResponse(success=False, message=f"❌ Error al obtener eventos: {e}")
+
 
     @mcp.tool()
     async def update_event(access_token: str, summary: str, start_time: str, new_summary: str = None, new_start_time: str = None, new_duration_minutes: int = None, timezone: str = "America/Lima") -> CalendarResponse:

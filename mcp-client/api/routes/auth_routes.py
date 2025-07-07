@@ -1,7 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from utils.google_oauth import get_google_authorization_url, exchange_code_for_tokens
 from db.mongodb import create_user, get_user_by_email, verify_password, save_google_tokens
-from core.security import generate_access_token
+from core.security import generate_access_token, get_current_user
 from db.models.users import UserLogin, UserRegister
 import jwt
 
@@ -55,7 +55,7 @@ def register(user: UserRegister):
     }
 
 
-@router.get("/google/login")
+@router.get("/google/login", dependencies=[Depends(get_current_user)])
 def google_login():
     """
     Devuelve la URL para redirigir al login de Google
@@ -111,7 +111,7 @@ def google_callback(code: str):
             password="" # Puedes dejar vacío o manejar OAuth-only users
         )
     
-    token = generate_access_token(user['user_id'])
+    token = generate_access_token(str(user['_id']))
     # 5. Guardar/actualizar tokens en Mongo
     save_google_tokens(correo, tokens)
 
